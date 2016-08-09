@@ -1,7 +1,9 @@
 using System;
+using System.IO;
 using System.Collections.Generic;
-using System.Linq;
-using System.Text;
+using CandleLib.Common;
+using ProtoReader = ProtoBuf.ProtoReader;
+using RuntimeTypeModel = ProtoBuf.Meta.RuntimeTypeModel;
 
 namespace CandleLib.Network {
 	public interface Packet {
@@ -17,6 +19,20 @@ namespace CandleLib.Network {
 	}
 
 	public static class PacketHelper {
+		const ProtoBuf.PrefixStyle style = ProtoBuf.PrefixStyle.Base128;
+		public static void Serialize(this Packet packet, Stream stream) {
+			int id = GetPacketTypeId(packet);
+			RuntimeTypeModel model = RuntimeTypeModel.Default;
+			Type type = packet.GetType();
+			model.SerializeWithLengthPrefix(stream, packet, /*model.MapType*/type, style, id);
+		}
+		public static Packet Deserialize(Stream stream) {
+			object buf = RuntimeTypeModel.Default.DeserializeWithLengthPrefix(stream, null, null, style, 0, GetPacketType);
+			return buf as Packet;
+		}
+		public static int ReadLengthPrefix(Stream stream, out int packetType, out int bytesRead) {
+			return ProtoReader.ReadLengthPrefix(stream, true, style, out packetType, out bytesRead);
+		}
 		public static int GetPacketTypeId(this Packet packet) {
 			int id, size;
 			GetPacketTypeInfo(packet.GetType(), out id, out size);
@@ -52,7 +68,7 @@ namespace CandleLib.Network {
 			TypeInfo ti;
 			if (!types.TryGetValue(id, out ti))
 				return false;
-			return size <= ti.attr.Size;
+			return ti.attr.Size <= 0 || size <= ti.attr.Size;
 		}
 
 		public static void RegisterPacketTypes(Type group) {
@@ -71,7 +87,11 @@ namespace CandleLib.Network {
 			if (attrs == null || attrs.Length == 0)
 				return false;
 			PacketTypeAttribute attr = (PacketTypeAttribute)attrs[0];
-			types.Add(attr.Id, new TypeInfo() { type = type, attr = attr });
+			int id = attr.Id;
+			if (type == GetPacketType(id))
+				return true;
+			Logger.Debug("network", "Register packet type={0} id={1}.", type, id);
+			types.Add(id, new TypeInfo() { type = type, attr = attr });
 			return true;
 		}
 	}

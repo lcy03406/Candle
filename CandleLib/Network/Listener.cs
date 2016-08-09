@@ -1,6 +1,7 @@
 using System;
 using System.Net;
 using System.Net.Sockets;
+using CandleLib.Common;
 
 namespace CandleLib.Network {
 	sealed class Listener {
@@ -21,7 +22,7 @@ namespace CandleLib.Network {
 			socket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
 			socket.Bind(localEndPoint);
 			socket.Listen(100);
-			Console.WriteLine("Waiting for a connection...");
+			Logger.Debug("network", "Listen on {0}.", localEndPoint);
 			socket.BeginAccept(AcceptCallback, this);
 		}
 		private void AcceptCallback(IAsyncResult ar) {
@@ -29,12 +30,12 @@ namespace CandleLib.Network {
 			try {
 				handler = socket.EndAccept(ar);
 			} catch (SocketException e) {
-				Console.WriteLine("accept error {0}.", e.ErrorCode);
+				Logger.Debug("network", "accept error {0}.", e.ErrorCode);
 				return;
 			} catch (ObjectDisposedException) {
 				return;
 			}
-			Console.WriteLine("accept ok.");
+			Logger.Debug("network", "accept ok.");
 			socket.BeginAccept(AcceptCallback, this);
 			IConnection conn = new Connection(handler);
 			manager.OnAccept(this, conn);

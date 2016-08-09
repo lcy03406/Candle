@@ -1,7 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Linq;
-using System.Text;
 using CandleLib.Network;
 using ProtoBuf;
 
@@ -11,13 +9,11 @@ namespace CandleLib.Playpen {
 	public static class Protocol {
 		public abstract class Req : Packet {
 			[ProtoMember(1)]
-			public int iself { get { return (self as IID).id; } set { (self as IID).id = value; } }
 			public UID self;
 			protected const int T = 1;
 		}
 		public abstract class Rep : Packet {
 			[ProtoMember(1)]
-			public int iself { get { return (self as IID).id; } set { (self as IID).id = value; } }
 			public UID self;
 			[ProtoMember(2)]
 			public int ret;

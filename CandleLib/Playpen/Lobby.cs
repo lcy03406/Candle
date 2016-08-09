@@ -1,9 +1,6 @@
 using System;
 using System.Collections.Generic;
-using System.Linq;
-using System.Text;
 using CandleLib.Network;
-using ProtoBuf;
 
 namespace CandleLib.Playpen {
 	using SID = ID<Session>;
@@ -49,7 +46,7 @@ namespace CandleLib.Playpen {
 					pen = new Pen();
 					m.pens.Add(q.pen, pen);
 				}
-				pen.AddUser(a);
+				//TODO pen.AddUser(a);
 				return 0;
 			});
 		}
@@ -80,11 +77,11 @@ namespace CandleLib.Playpen {
 			HashSet<UID> ids;
 			if (!sessions.TryGetValue(sid, out ids))
 				return;
-			foreach (int id in ids) {
+			foreach (UID id in ids) {
 				User player;
 				if (!users.TryGetValue(id, out player))
 					continue;
-				int pen = 
+				//TODO
 			}
 			throw new NotImplementedException();
 		}

@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Net;
-using ProtoBuf;
+using CandleLib.Common;
 
 namespace CandleLib.Network {
 	using SID = ID<Session>;
@@ -117,12 +117,13 @@ namespace CandleLib.Network {
 			IConnection conn = FindConn(sid);
 			if (conn == null)
 				return;
-			byte[] byteData;
 			using (MemoryStream stream = new MemoryStream()) {
-				Serializer.SerializeWithLengthPrefix(stream, p, PrefixStyle.Base128, PacketHelper.GetPacketTypeId(p));
-				byteData = stream.ToArray();
+				p.Serialize(stream);
+				byte[] byteData = stream.GetBuffer();
+				int size = (int)stream.Position;
+				Logger.Debug("network", "Send type={0} size={1}.", p.GetType(), size);
+				conn.SendRaw(byteData, size);
 			}
-			conn.SendRaw(byteData);
 		}
 
 		public void Broadcast(State state, Packet p) {
@@ -134,13 +135,14 @@ namespace CandleLib.Network {
 					}
 				}
 			}
-			byte[] byteData;
 			using (MemoryStream stream = new MemoryStream()) {
-				Serializer.SerializeWithLengthPrefix(stream, p, PrefixStyle.Base128, PacketHelper.GetPacketTypeId(p));
-				byteData = stream.ToArray();
-			}
-			foreach (IConnection conn in cons) {
-				conn.SendRaw(byteData);
+				p.Serialize(stream);
+				byte[] byteData = stream.GetBuffer();
+				int size = (int)stream.Position;
+				foreach (IConnection conn in cons) {
+					Logger.Debug("network", "Send type={0} size={1}.", p.GetType(), size);
+					conn.SendRaw(byteData, size);
+				}
 			}
 		}
 

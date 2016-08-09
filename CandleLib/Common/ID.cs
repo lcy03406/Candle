@@ -9,11 +9,13 @@ namespace CandleLib.Network {
 		int id { get; set; }
 	}
 
+	[ProtoContract]
 	public struct ID<T> : IID {
-		//int IID.id { get { return id; } set { id = value; } }
-		//private int id;
+		[ProtoMember(1)]
+		int IID.id { get { return id; } set { id = value; } }
+		private int id;
 		
-		public int id {	get; set; }
+		//public int id {	get; set; }
 
 		private ID(int id) {
 			this.id = id;

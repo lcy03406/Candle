@@ -2,8 +2,7 @@ using System;
 using System.IO;
 using System.Net;
 using System.Net.Sockets;
-using ProtoBuf;
-using ProtoBuf.Meta;
+using CandleLib.Common;
 
 namespace CandleLib.Network {
 	interface IConnection {
@@ -13,7 +12,7 @@ namespace CandleLib.Network {
 		IPEndPoint reconn { get; set; }
 
 		void InitRecv();
-		void SendRaw(byte[] byteData);
+		void SendRaw(byte[] byteData, int size);
 		void Disconnect();
 	}
 
@@ -23,7 +22,7 @@ namespace CandleLib.Network {
 		int dataEnd;
 		int packetSize;
 		IManagerCallback manager;
-		IManagerCallback IConnection.manager { get { return manager; } set { value = manager; } }
+		IManagerCallback IConnection.manager { get { return manager; } set { manager = value; } }
 		ID<Session> IConnection.sid { get; set; }
 		State IConnection.state { get; set; }
 		IPEndPoint IConnection.reconn { get; set; }
@@ -31,18 +30,43 @@ namespace CandleLib.Network {
 		void IConnection.InitRecv() {
 			if (buffer == null) {
 				buffer = new byte[4096];
-				socket.BeginReceive(buffer, 0, buffer.Length, 0, new AsyncCallback(RecvCallback), this);
+				try {
+					socket.BeginReceive(buffer, 0, buffer.Length, 0, new AsyncCallback(RecvCallback), this);
+				} catch (SocketException e) {
+					Logger.Debug("network", "BeginReceive error {0}.", e.ErrorCode);
+					Disconnect();
+					return;
+				} catch (ObjectDisposedException) {
+					Disconnect();
+					return;
+				}
 			}
 		}
 
-		void IConnection.SendRaw(byte[] byteData) {
-			socket.BeginSend(byteData, 0, byteData.Length, 0, new AsyncCallback(SendCallback), this);
+		void IConnection.SendRaw(byte[] byteData, int size) {
+			try {
+				socket.BeginSend(byteData, 0, size, 0, new AsyncCallback(SendCallback), this);
+			} catch (SocketException e) {
+				Logger.Debug("network", "BeginReceive error {0}.", e.ErrorCode);
+				Disconnect();
+				return;
+			} catch (ObjectDisposedException) {
+				Disconnect();
+				return;
+			}
+
 		}
 
 		void IConnection.Disconnect() {
-			manager = null;
-			socket.Shutdown(SocketShutdown.Both);
-			socket.Close();
+			try {
+				socket.Shutdown(SocketShutdown.Both);
+				socket.Close();
+			} catch (SocketException e) {
+				Logger.Debug("network", "Shutdown error {0}.", e.ErrorCode);
+				return;
+			} catch (ObjectDisposedException) {
+				return;
+			}
 		}
 
 		public Connection(Socket socket) {
@@ -50,12 +74,18 @@ namespace CandleLib.Network {
 		}
 
 		private void Disconnect() {
-			socket.Shutdown(SocketShutdown.Both);
-			socket.Close();
-			IManagerCallback manager = this.manager;
-			this.manager = null;
-			if (manager != null) {
-				manager.OnDisconnect(this);
+			try {
+				Logger.Debug("network", "socket {0} Shotdown.", socket);
+				socket.Shutdown(SocketShutdown.Both);
+				socket.Close();
+				if (manager != null) {
+					manager.OnDisconnect(this);
+				}
+			} catch (SocketException e) {
+				Logger.Debug("network", "Shotdown error {0}.", e.ErrorCode);
+				return;
+			} catch (ObjectDisposedException) {
+				return;
 			}
 		}
 
@@ -64,7 +94,7 @@ namespace CandleLib.Network {
 			try {
 				bytesRead = socket.EndReceive(ar);
 			} catch (SocketException e) {
-				Console.WriteLine("recv error {0}.", e.ErrorCode);
+				Logger.Debug("network", "EndReceive error {0}.", e.ErrorCode);
 				Disconnect();
 				return;
 			} catch (ObjectDisposedException) {
@@ -82,7 +112,16 @@ namespace CandleLib.Network {
 						break;
 					manager.OnRecvPacket(this, p);
 				}
-				socket.BeginReceive(buffer, dataEnd, buffer.Length - dataEnd, 0, new AsyncCallback(RecvCallback), this);
+				try {
+					socket.BeginReceive(buffer, dataEnd, buffer.Length - dataEnd, 0, new AsyncCallback(RecvCallback), this);
+				} catch (SocketException e) {
+					Logger.Debug("network", "BeginReceive error {0}.", e.ErrorCode);
+					Disconnect();
+					return;
+				} catch (ObjectDisposedException) {
+					Disconnect();
+					return;
+				}
 			}
 		}
 		private Packet TryReadPacket() {
@@ -91,9 +130,10 @@ namespace CandleLib.Network {
 			using (MemoryStream stream = new MemoryStream(buffer, 0, dataEnd, false)) {
 				if (packetSize == 0) {
 					int packetType, bytesRead;
-					packetSize = ProtoReader.ReadLengthPrefix(stream, false, PrefixStyle.Base128, out packetType, out bytesRead);
+					packetSize = PacketHelper.ReadLengthPrefix(stream, out packetType, out bytesRead);
 					if (bytesRead > 0) {
 						if (!PacketHelper.ValidRecv(packetType, packetSize)) {
+							Logger.Debug("network", "ValidRecv error type={0} size={1}.", packetType, packetSize);
 							Disconnect();
 							return null;
 						}
@@ -110,16 +150,16 @@ namespace CandleLib.Network {
 						stream.Position = 0;
 					}
 				}
-				object buf = RuntimeTypeModel.Default.DeserializeWithLengthPrefix(stream, null, null, PrefixStyle.Base128, 0, PacketHelper.GetPacketType); ;
-				if (buf == null) {
+				Packet p = PacketHelper.Deserialize(stream);
+				if (p == null) {
 					return null;
 				}
+				Logger.Debug("network", "Recv type={0} size={1}.", p.GetType(), packetSize);
 				int position = (int)stream.Position;
 				if (position < dataEnd) {
 					Buffer.BlockCopy(buffer, position, buffer, 0, dataEnd - position);
 				}
 				dataEnd -= position;
-				Packet p = buf as Packet;
 				return p;
 			}
 		}
@@ -128,7 +168,7 @@ namespace CandleLib.Network {
 			try {
 				int bytesSent = socket.EndSend(ar);
 			} catch (SocketException e) {
-				Console.WriteLine("send error {0}.", e.ErrorCode);
+				Logger.Debug("network", "send error {0}.", e.ErrorCode);
 				Disconnect();
 				return;
 			} catch (ObjectDisposedException) {

@@ -1,20 +1,17 @@
 using System;
 using System.Net;
 using System.Net.Sockets;
+using CandleLib.Common;
 
 namespace CandleLib.Network {
-	interface IConnectorCallback {
-		void OnConnectSuccess(Connector cor, Connection con);
-		void OnConnectFail(Connector cor, int error);
-	}
 	sealed class Connector {
-		IConnectorCallback cb;
+		IManagerCallback manager;
 		State state;
 		Socket socket;
 		IPEndPoint remote;
 
-		public Connector(IConnectorCallback cb, State state) {
-			this.cb = cb;
+		public Connector(IManagerCallback manager, State state) {
+			this.manager = manager;
 			this.state = state;
 		}
 
@@ -39,18 +36,18 @@ namespace CandleLib.Network {
 			try {
 				socket.EndConnect(ar);
 			} catch (SocketException e) {
-				Console.WriteLine("connect {0} error {1}.", remote, e.ErrorCode);
+				Logger.Debug("network", "connect {0} error {1}.", remote, e.ErrorCode);
 				//TODO delay
 				socket.BeginConnect(remote, ConnectCallback, this);
 				return;
 			} catch (ObjectDisposedException) {
-				Console.WriteLine("connect {0} cancel.", remote);
+				Logger.Debug("network", "connect {0} cancel.", remote);
 				return;
 			}
-			Console.WriteLine("connect {0} ok.", socket.RemoteEndPoint.ToString());
+			Logger.Debug("network", "connect {0} ok.", socket.RemoteEndPoint.ToString());
 			IConnection conn = new Connection(socket);
 			conn.reconn = remote;
-			cb.OnConnect(this, conn);
+			manager.OnConnect(this, conn);
 			conn.InitRecv();
 		}
 	}

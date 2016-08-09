@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 
-namespace CandleLib.Network {
+namespace CandleLib.Common {
 	public class Statistic<T> where T : IComparable {
 		class Stat {
 			public int first;
@@ -40,7 +40,7 @@ namespace CandleLib.Network {
 				int avg = 0;
 				if (st.count > 0)
 					avg = st.sum / st.count;
-				Console.WriteLine("Tag={0}, first={1}, last={2}, min={3}, max={4}, sum={5}, count={6}, avg={7}",
+				Logger.Info("stat", "Tag={0}, first={1}, last={2}, min={3}, max={4}, sum={5}, count={6}, avg={7}",
 					tag, st.first, st.last, st.min, st.max, st.sum, st.count, avg);
 			}
 		}
